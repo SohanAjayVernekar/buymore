@@ -2,6 +2,12 @@
 
 # 🛍️ BuyMore
 
+[![CI](https://github.com/SohanAjayVernekar/buymore/actions/workflows/ci.yml/badge.svg)](https://github.com/SohanAjayVernekar/buymore/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi&logoColor=white)
+![Vue](https://img.shields.io/badge/Vue-3.5-42b883?logo=vuedotjs&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-Compose-2496ed?logo=docker&logoColor=white)
+
 **E-Commerce Order Management & Search — full-stack proof of concept**
 
 `FastAPI` · `Vue 3` · `PostgreSQL` · `MongoDB` · `Elasticsearch` · `RabbitMQ + Celery` · `Docker`
@@ -9,6 +15,8 @@
 A five-screen storefront + admin suite where product and order data flows through a
 queued, eventually-consistent indexing pipeline — built to the supplied BuyMore
 design reference: mint canvas, blue navigation, pastel editorial cards.
+
+![BuyMore storefront](docs/screenshots/storefront.png)
 
 </div>
 
@@ -166,3 +174,7 @@ Certificates are git-ignored; never commit `frontend/certs/`.
 - Google Fonts is optional; system fonts remain usable offline.
 - Containers, network, and volumes use the `buymore-poc` Compose project name.
 - All services are unauthenticated by design — run this locally, not on the public internet.
+
+## 📄 License
+
+Released under the [MIT License](LICENSE) — © 2026 Sohan Ajay Vernekar.

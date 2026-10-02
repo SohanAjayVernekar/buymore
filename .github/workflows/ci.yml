@@ -1,0 +1,113 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  frontend:
+    name: Frontend build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: Build SPA
+        working-directory: frontend
+        run: npm run build
+
+  backend:
+    name: Backend tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: buymore
+          POSTGRES_PASSWORD: local_poc_only
+          POSTGRES_DB: buymore
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U buymore"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      mongo:
+        image: mongo:7
+        ports: ["27017:27017"]
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.adminCommand(\"ping\").ok'"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      elasticsearch:
+        image: docker.elastic.co/elasticsearch/elasticsearch:8.17.0
+        env:
+          discovery.type: single-node
+          xpack.security.enabled: "false"
+          ES_JAVA_OPTS: -Xms512m -Xmx512m
+        ports: ["9200:9200"]
+      rabbitmq:
+        image: rabbitmq:3.13-management-alpine
+        env:
+          RABBITMQ_DEFAULT_USER: buymore
+          RABBITMQ_DEFAULT_PASS: local_poc_only
+        ports: ["5672:5672"]
+    env:
+      POSTGRES_URL: postgresql+psycopg://buymore:local_poc_only@localhost:5432/buymore
+      MONGODB_URL: mongodb://localhost:27017
+      MONGODB_DATABASE: buymore
+      ELASTICSEARCH_URL: http://localhost:9200
+      ELASTICSEARCH_INDEX: orders
+      RABBITMQ_URL: amqp://buymore:local_poc_only@localhost:5672//
+      CORS_ORIGINS: http://localhost:5174
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - name: Install dependencies
+        working-directory: backend
+        run: pip install -r requirements.txt
+      - name: Wait for Elasticsearch
+        run: |
+          ok=""
+          for i in $(seq 1 30); do
+            if curl -fsS "http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s" >/dev/null; then
+              ok=1; break
+            fi
+            sleep 5
+          done
+          [ -n "$ok" ] || { echo "Elasticsearch did not become ready"; exit 1; }
+      - name: Wait for RabbitMQ
+        run: |
+          ok=""
+          for i in $(seq 1 30); do
+            if (exec 3<>/dev/tcp/localhost/5672) 2>/dev/null; then
+              exec 3>&- 3<&-; ok=1; break
+            fi
+            sleep 3
+          done
+          [ -n "$ok" ] || { echo "RabbitMQ did not become ready"; exit 1; }
+      - name: Migrate and seed
+        working-directory: backend
+        run: |
+          python -m scripts.migrate
+          python -m scripts.seed
+      - name: Start Celery worker
+        working-directory: backend
+        run: |
+          nohup celery -A app.sync.celery worker --loglevel=info > /tmp/celery.log 2>&1 &
+          sleep 6
+      - name: Run integration tests
+        working-directory: backend
+        run: python -m pytest tests/ -v
